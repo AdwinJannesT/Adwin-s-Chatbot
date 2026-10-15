@@ -11,7 +11,7 @@ st.set_page_config(
     page_icon="🤖"
 )
 
-st.title("🤖 Adwin AI Chatbot")
+st.title("🤖 Adwin's AI Chatbot")
 st.caption("Powered by Google Gemini")
 
 api_key = os.getenv("GEMINI_API_KEY")
@@ -25,10 +25,30 @@ client = genai.Client(api_key=api_key)
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if st.sidebar.button("Clear Chat"):
-    st.session_state.messages = []
-    st.rerun()
+# Sidebar tools
+with st.sidebar:
+    st.subheader("Chat Tools")
 
+    if st.session_state.messages:
+        chat_text = "\n\n".join(
+            f"{'You' if msg['role'] == 'user' else 'Adwin AI'}:\n"
+            f"{msg['content']}"
+            for msg in st.session_state.messages
+        )
+
+        st.download_button(
+            label="📥 Download Chat",
+            data=chat_text,
+            file_name="adwin_chat_history.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
+
+    if st.button("🗑️ Clear Chat", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
+
+# Display conversation history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
