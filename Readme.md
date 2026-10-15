@@ -70,9 +70,7 @@ The application will open in your browser.
 
 ## 🌐 Live Demo
 
-[[Open the deployed AI chatbot](PASTE_YOUR_STREAMLIT_APP_URL_HERE)](https://adwin-ai-chatbot.streamlit.app/)
-
-Replace the placeholder with your actual Streamlit Community Cloud URL after deployment succeeds.
+https://adwin-ai-chatbot.streamlit.app/
 
 ## 🔒 Security
 
