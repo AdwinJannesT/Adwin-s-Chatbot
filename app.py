@@ -7,8 +7,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 st.set_page_config(
-    page_title="Adwin AI Chatbot",
-    page_icon="🤖"
+    page_title="Adwin's AI Chatbot",
+    page_icon="🤖",
+    layout="centered"
 )
 
 st.title("🤖 Adwin's AI Chatbot")
@@ -22,8 +23,12 @@ if not api_key:
 
 client = genai.Client(api_key=api_key)
 
+# Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+if "suggested_prompt" not in st.session_state:
+    st.session_state.suggested_prompt = None
 
 # Sidebar tools
 with st.sidebar:
@@ -46,15 +51,51 @@ with st.sidebar:
 
     if st.button("🗑️ Clear Chat", use_container_width=True):
         st.session_state.messages = []
+        st.session_state.suggested_prompt = None
         st.rerun()
 
-# Display conversation history
+# Suggested prompts appear before the first question
+if not st.session_state.messages:
+    st.subheader("💡 Try asking")
+
+    col1, col2 = st.columns(2)
+
+    if col1.button("🐍 Python Basics", use_container_width=True):
+        st.session_state.suggested_prompt = (
+            "Explain Python basics with a simple example."
+        )
+
+    if col2.button("🤖 Generative AI", use_container_width=True):
+        st.session_state.suggested_prompt = (
+            "Explain Generative AI in simple words."
+        )
+
+    col3, col4 = st.columns(2)
+
+    if col3.button("💻 Python Program", use_container_width=True):
+        st.session_state.suggested_prompt = (
+            "Write a Python program to add two numbers."
+        )
+
+    if col4.button("🧠 Machine Learning", use_container_width=True):
+        st.session_state.suggested_prompt = (
+            "Explain Machine Learning with a real-world example."
+        )
+
+# Display previous conversation
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+# Chat input
 prompt = st.chat_input("Ask me anything...")
 
+# Use a suggested question if selected
+if st.session_state.suggested_prompt:
+    prompt = st.session_state.suggested_prompt
+    st.session_state.suggested_prompt = None
+
+# Process the user's question
 if prompt:
     st.session_state.messages.append({
         "role": "user",
@@ -65,12 +106,14 @@ if prompt:
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
+        with st.spinner("Adwin AI is thinking..."):
             try:
                 history = [
                     {
-                        "role": "user" if msg["role"] == "user"
-                        else "model",
+                        "role": (
+                            "user" if msg["role"] == "user"
+                            else "model"
+                        ),
                         "parts": [{"text": msg["content"]}]
                     }
                     for msg in st.session_state.messages
@@ -90,4 +133,4 @@ if prompt:
                 })
 
             except Exception as error:
-                st.error(f"Error: {error}")
+                st.error(f"Gemini request failed: {error}")
