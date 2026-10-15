@@ -16,7 +16,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# App heading
+# Application heading
 st.title("🤖 Adwin's AI Chatbot")
 st.caption("Powered by Google Gemini")
 
@@ -26,13 +26,39 @@ api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     st.error("Gemini API key is missing.")
     st.info(
-        "Add GEMINI_API_KEY to your .env file "
+        "Add GEMINI_API_KEY to your local .env file "
         "or Streamlit Cloud Secrets."
     )
     st.stop()
 
 # Initialize Gemini client
 client = genai.Client(api_key=api_key)
+
+# Personality instructions
+PERSONALITIES = {
+    "Beginner Tutor": (
+        "You are a patient beginner tutor. Explain concepts "
+        "in simple language, step by step. Use practical examples "
+        "and define technical terms."
+    ),
+    "Python Developer": (
+        "You are an experienced Python developer. Help with "
+        "Python programming, debugging, code quality, and best "
+        "practices. Provide readable code and explain important lines."
+    ),
+    "Embedded Systems Assistant": (
+        "You are an embedded systems engineering assistant. Help "
+        "with microcontrollers, GPIO, sensors, UART, SPI, I2C, "
+        "PCB design, firmware, and electronics. Explain concepts "
+        "clearly and distinguish verified facts from assumptions. "
+        "Highlight electrical and hardware safety when relevant."
+    ),
+    "GenAI Expert": (
+        "You are a generative AI and machine learning assistant. "
+        "Explain LLMs, prompt engineering, APIs, model integration, "
+        "and AI application development with practical examples."
+    )
+}
 
 # Initialize session state
 if "messages" not in st.session_state:
@@ -41,28 +67,47 @@ if "messages" not in st.session_state:
 if "suggested_prompt" not in st.session_state:
     st.session_state.suggested_prompt = None
 
-# Sidebar
+if "personality" not in st.session_state:
+    st.session_state.personality = "Beginner Tutor"
+
+if "temperature" not in st.session_state:
+    st.session_state.temperature = 0.5
+
+# Sidebar settings
 with st.sidebar:
+    st.subheader("🎭 Chatbot Personality")
+
+    personality = st.selectbox(
+        "Choose your assistant",
+        options=list(PERSONALITIES.keys()),
+        key="personality"
+    )
+
+    st.caption({
+        "Beginner Tutor": "Simple explanations and examples.",
+        "Python Developer": "Code, debugging, and best practices.",
+        "Embedded Systems Assistant": "MCUs, electronics, and firmware.",
+        "GenAI Expert": "Generative AI and machine learning."
+    }[personality])
+
+    st.divider()
     st.subheader("⚙️ Response Settings")
 
     temperature = st.slider(
         "Creativity",
         min_value=0.0,
         max_value=1.0,
-        value=0.5,
         step=0.1,
+        key="temperature",
         help=(
-            "Lower values give more predictable responses. "
+            "Lower values tend to be more predictable. "
             "Higher values allow more variation."
         )
     )
 
-    st.caption(f"Current creativity: {temperature:.1f}")
-
     st.divider()
     st.subheader("💬 Chat Tools")
 
-    # Download conversation
     if st.session_state.messages:
         chat_text = "\n\n".join(
             f"{'You' if msg['role'] == 'user' else 'Adwin AI'}:\n"
@@ -78,13 +123,12 @@ with st.sidebar:
             use_container_width=True
         )
 
-    # Clear conversation
     if st.button("🗑️ Clear Chat", use_container_width=True):
         st.session_state.messages = []
         st.session_state.suggested_prompt = None
         st.rerun()
 
-# Suggested prompts
+# Suggested prompts for a new conversation
 if not st.session_state.messages:
     st.subheader("💡 Try asking")
 
@@ -110,13 +154,13 @@ if not st.session_state.messages:
         )
         st.rerun()
 
-    if col4.button("🧠 Machine Learning", use_container_width=True):
+    if col4.button("🔌 Embedded Systems", use_container_width=True):
         st.session_state.suggested_prompt = (
-            "Explain Machine Learning with a real-world example."
+            "Explain UART, SPI, and I2C with real-world examples."
         )
         st.rerun()
 
-# Display previous messages
+# Display conversation history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -124,14 +168,14 @@ for message in st.session_state.messages:
 # Chat input
 prompt = st.chat_input("Ask me anything...")
 
-# Use a suggested prompt if selected
+# Use selected suggested prompt
 if st.session_state.suggested_prompt:
     prompt = st.session_state.suggested_prompt
     st.session_state.suggested_prompt = None
 
-# Process the question
+# Process question
 if prompt:
-    # Save and display user message
+    # Save and display user's message
     st.session_state.messages.append({
         "role": "user",
         "content": prompt
@@ -140,11 +184,10 @@ if prompt:
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate response
     with st.chat_message("assistant"):
-        with st.spinner("Adwin AI is thinking..."):
+        with st.spinner(f"{personality} is thinking..."):
             try:
-                # Convert messages to Gemini format
+                # Include conversation history in Gemini format
                 history = [
                     {
                         "role": (
@@ -157,14 +200,28 @@ if prompt:
                     for msg in st.session_state.messages
                 ]
 
+                # Add the selected personality instructions
+                contents = [
+                    {
+                        "role": "user",
+                        "parts": [{
+                            "text": (
+                                "Follow these assistant instructions "
+                                "throughout this conversation:\n"
+                                + PERSONALITIES[personality]
+                            )
+                        }]
+                    }
+                ] + history
+
                 response = None
 
-                # Retry temporary 503 errors
+                # Retry temporary server overload errors
                 for attempt in range(3):
                     try:
                         response = client.models.generate_content(
                             model="gemini-3.6-flash",
-                            contents=history,
+                            contents=contents,
                             config=types.GenerateContentConfig(
                                 temperature=temperature
                             )
@@ -174,12 +231,6 @@ if prompt:
                     except errors.APIError as error:
                         if error.code == 503 and attempt < 2:
                             wait_seconds = 2 ** (attempt + 1)
-
-                            st.warning(
-                                "Gemini is busy. "
-                                f"Retrying in {wait_seconds} seconds..."
-                            )
-
                             time.sleep(wait_seconds)
                         else:
                             raise
@@ -205,13 +256,13 @@ if prompt:
             except errors.APIError as error:
                 if error.code == 503:
                     st.warning(
-                        "Gemini is temporarily experiencing high demand. "
+                        "Gemini is temporarily busy. "
                         "Please wait and try again."
                     )
                 elif error.code == 429:
                     st.error(
                         "Gemini request limit reached. "
-                        "Check your API quota and billing settings."
+                        "Check your API quota and usage limits."
                     )
                 else:
                     st.error(f"Gemini API error: {error}")
